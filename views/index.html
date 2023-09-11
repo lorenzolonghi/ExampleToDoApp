@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <link rel="stylesheet" href="style.css">
+    <title>Hello, world!</title>
+  </head>
+  <body>
+    <div class="container h-100">
+        <a href="/auth/logout">Logout</a>
+        <div class="row justify-content-center h-100">
+            <div class="col-md-6">
+                <h1 class="text-center">ToDoList</h1>
+                <div class="text-center">
+                    <button class="btn btn-primary" onclick="OpenCreateModal()">Crea nuovo</button>
+                    <div class="mt-5" id="todoContainer">
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!--create modal-->
+    <div class="modal fade" id="createModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+            <h5 class="modal-title" id="exampleModalLabel">Nuovo ToDo</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+            </button>
+            </div>
+            <div class="modal-body">
+            <form id="createForm">
+                <label>Titolo</label>
+                <input type="text" name="title" class="form-control">
+                <div class="text-center">
+                    <input type="submit" class="btn btn-primary mt-3" value="Crea">
+                </div>
+            </form>
+            </div>
+        </div>
+        </div>
+    </div>
+    <!--end create modal-->
+
+
+    <!--edit modal-->
+    <div class="modal fade" id="editModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+            <h5 class="modal-title" id="exampleModalLabel">Modifica ToDo</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+            </button>
+            </div>
+            <div class="modal-body">
+            <form id="editForm">
+                <label>Titolo</label>
+                <input type="text" name="title" class="form-control">
+                <div class="text-center">
+                    <input type="submit" class="btn btn-primary mt-3" value="Modifica">
+                </div>
+            </form>
+            </div>
+        </div>
+        </div>
+    </div>
+    <!--end edit modal-->
+
+    <script>
+        //components
+        const todoContainer = document.querySelector("#todoContainer");
+        const createModal = document.querySelector("#createModal");
+        const editModal = document.querySelector("#editModal");
+        const createForm = document.querySelector("#createForm");
+
+        //events
+        window.onload = WindowLoad;
+        createForm.onsubmit = CreateFormSubmit;
+        editForm.onsubmit = EditFormSubmit;
+
+
+        //globals
+        let todoArray = [];
+        let editingTodo;
+
+
+        async function WindowLoad(){
+            await FetchTodos();
+            RenderTodos();
+        }
+
+        async function CreateFormSubmit(e){
+            e.preventDefault();
+
+            const body = { title: createForm.title.value }
+
+            const res = await fetch("/api/todo", { 
+              method: 'POST', 
+              body: JSON.stringify(body),
+              headers: {'Content-Type': 'application/json'}
+            });  
+
+            if(!res.ok){
+                const error = await res.json();
+                ShowError(error);
+            }
+            else{
+                await FetchTodos();
+                RenderTodos();
+                $('#createModal').modal('hide');
+                createForm.title.value = "";
+            }
+        }
+
+        async function FetchTodos(){
+            const res = await fetch("/api/todo");
+            todoArray = await res.json();
+        }
+
+        function RenderTodos(){
+            todoContainer.innerHTML = "";
+            todoArray.map(todo => {
+                let element;
+                if(!todo.completed){
+                    element = `
+                    <div class="todo" id="todoElement${todo.id}">
+                        <h5>${todo.title}</h5>
+                        <button class="btn btn-success" onclick="CompleteTodo(${todo.id})">Completa</button>
+                        <button class="btn btn-danger" onclick="DeleteTodo(${todo.id})">Elimina</button>
+                        <button class="btn btn-primary" onclick="EditTodo(${todo.id})">Modifica</button>
+                    </div>
+                        `;
+                }
+                else{
+                    element = `
+                    <div class="todo bg-success" id="todoElement${todo.id}">
+                        <h5>${todo.title}</h5>
+                        <button class="btn btn-danger" onclick="DeleteTodo(${todo.id})">Elimina</button>
+                    </div>
+                        `;
+                }
+                todoContainer.innerHTML += element;
+            })
+        }
+
+        async function DeleteTodo(id){
+            const res = await fetch("/api/todo/"+ id, { 
+              method: 'DELETE', 
+              headers: {'Content-Type': 'application/json'}
+            });  
+
+            if(res.ok){
+                document.getElementById("todoElement"+ id).remove();
+                todoArray = todoArray.filter(todo => todo.id !== id);
+                console.log(todoArray)
+            }
+            else{
+                if(res.status === 404){
+                    alert("Todo non trovato");
+                    return;
+                }
+                else{
+                    alert("Errore inaspettato");
+                }
+            }
+        }
+
+        async function CompleteTodo(id){
+            const res = await fetch("/api/complete/"+ id, { 
+              method: 'PUT', 
+              headers: {'Content-Type': 'application/json'}
+            });  
+
+            if(res.ok){
+                await FetchTodos();
+                RenderTodos();
+            }
+            else{
+                if(res.status === 404){
+                    alert("Todo non trovato");
+                    return;
+                }
+                else{
+                    alert("Errore inaspettato");
+                }
+            }
+        }
+
+        function EditTodo(id){
+            editingTodo = todoArray.find(todo => todo.id === id);
+            editForm.title.value = editingTodo.title;
+            $('#editModal').modal('show')
+        }
+
+        async function EditFormSubmit(e){
+            e.preventDefault();
+
+            const body = { title: editForm.title.value }
+            const res = await fetch("/api/todo/"+ editingTodo.id, { 
+              method: 'PUT', 
+              body: JSON.stringify(body),
+              headers: {'Content-Type': 'application/json'}
+            });  
+
+            if(res.ok){
+                await FetchTodos();
+                RenderTodos();
+                $('#editModal').modal('hide');
+            }
+            else{
+                if(res.status === 404){
+                    alert("Todo non trovato");
+                    return;
+                }
+                else{
+                    alert("Errore inaspettato");
+                }
+            }
+        }
+
+        function OpenCreateModal() {
+            $('#createModal').modal('show');
+        }
+
+        function ShowError(errorMessage){
+            alert(errorMessage);
+        }
+
+
+    </script>
+
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.12.9/dist/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+  </body>
+</html>
